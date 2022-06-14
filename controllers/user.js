@@ -1,41 +1,70 @@
 
 const { response, request } = require('express')
+const bcryptjs = require('bcryptjs');
 
-const usersGet = (req = request, res = response) => {
 
-    const { user, surname } = req.query;
+const User = require('../models/user');
 
+const usersGet = async (req = request, res = response) => {
+
+    const { limit = 5, since = 0 } = req.query;
+    const query = { state: true }
+    // const users = await User.find(query)
+    //     .skip(Number(since))
+    //     .limit(Number(limit))
+
+    // const total = await User.countDocuments(query);
+
+    const [total, users] = await Promise.all([
+        User.countDocuments(query),
+        User.find(query)
+            .skip(Number(since))
+            .limit(Number(limit))
+    ])
     res.json({
-        msg: 'peticion GET a /api from CONTROLER',
-        user,
-        surname
+        total,
+        users
     })
 }
-const usersPost = (req, res = response) => {
+const usersPost = async (req, res = response) => {
 
-    const { name, age } = req.body;
+    const { name, password, email, rol } = req.body;
+    const user = new User({ name, password, email, rol });
 
-    res.json({
-        msg: 'peticion POST a /api from CONTROLER',
-        name,
-        age
-    })
+    //Encriptar passwd
+    const salt = bcryptjs.genSaltSync();
+    user.password = bcryptjs.hashSync(password, salt);
+
+    //Guardar en bd
+    await user.save();
+
+    res.json(user)
 }
 
-const usersPut = (req, res = response) => {
+const usersPut = async (req, res = response) => {
 
-    const id = req.params.id;
+    const { id } = req.params;
+    const { _id, password, google, email, ...resto } = req.body;
 
-    res.json({
-        msg: 'peticion PUT a /api from CONTROLER',
-        id
-    })
+    if (password) {
+        //encriptar psswd
+        const salt = bcryptjs.genSaltSync();
+        resto.password = bcryptjs.hashSync(password, salt);
+    }
+
+    const user = await User.findByIdAndUpdate(id, resto);
+
+    res.json(user)
 }
 
-const usersDelete = (req, res = response) => {
-    res.json({
-        msg: 'peticion DELETE a /api from CONTROLER'
-    })
+const usersDelete = async (req, res = response) => {
+
+    const { id } = req.params;
+
+    //Fisicamente lo borramos
+    //const user = await User.findByIdAndDelete( id )
+    const user = await User.findByIdAndUpdate(id, { state: false })
+    res.json(user)
 }
 
 module.exports = {
